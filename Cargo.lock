@@ -1272,6 +1272,7 @@ dependencies = [
  "swc_ecma_parser",
  "swc_ecma_transforms_base",
  "swc_ecma_transforms_testing",
+ "swc_ecma_utils",
  "swc_ecma_visit",
  "swc_plugin",
  "swc_plugin_macro",
@@ -1487,8 +1488,12 @@ dependencies = [
 name = "swc_nativewind"
 version = "0.1.0"
 dependencies = [
+ "regex",
  "serde",
  "swc_core",
+ "swc_ecma_transforms_testing",
+ "testing",
+ "tracing",
 ]
 
 [[package]]
@@ -1515,9 +1520,11 @@ dependencies = [
 name = "swc_plugin_nativewind"
 version = "0.1.0"
 dependencies = [
+ "regex",
  "serde",
  "swc_core",
  "swc_nativewind",
+ "tracing",
 ]
 
 [[package]]

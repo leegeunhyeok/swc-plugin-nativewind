@@ -4,13 +4,21 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[workspace]
+members = [
+    ".",
+    "transform",
+]
+
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
+regex = "1.10.2"
 serde = "1"
 swc_core = { version = "0.86.*" }
 swc_nativewind = { path = "./transform" }
+tracing = { version = "0.1.40", features = ["release_max_level_off"] }
 
 # .cargo/config defines few alias to build plugin.
 # cargo build-wasi generates wasm-wasi32 binary
