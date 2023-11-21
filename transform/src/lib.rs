@@ -98,27 +98,26 @@ impl VisitMut for NativeWindVisitor {
     fn visit_mut_module(&mut self, module: &mut Module) {
         let mut collector = ReactCollector::default();
         module.visit_mut_with(&mut collector);
+
         let ReactCollector { react_imports } = collector;
         debug!("react_imports: {:#?}", react_imports);
 
-        let react_modules = react_imports.len();
-        if react_modules == 0 {
+        if react_imports.len() == 0 {
             return;
         }
 
-        let is_cjs = react_imports.into_iter().fold(0, |prev, imports| {
-            (match imports.module_type {
-                ModuleType::Cjs => 1,
-                _ => 0,
-            }) + prev
-        }) == react_modules;
-
         module.body.insert(
             0,
-            if is_cjs {
-                self.get_require_create_element_and_check_css_interop()
-            } else {
+            if react_imports
+                .into_iter()
+                .any(|import| match import.module_type {
+                    ModuleType::Esm => true,
+                    ModuleType::Cjs => false,
+                })
+            {
                 self.get_import_create_element_and_check_css_interop()
+            } else {
+                self.get_require_create_element_and_check_css_interop()
             },
         );
     }
