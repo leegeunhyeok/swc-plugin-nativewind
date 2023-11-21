@@ -1,0 +1,9 @@
+{
+  "rust-analyzer.linkedProjects": [
+    "Cargo.toml",
+    "transform/Cargo.toml"
+  ],
+  "cSpell.words": [
+    "nativewind"
+  ]
+}

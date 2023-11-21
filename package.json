@@ -1,0 +1,15 @@
+{
+    "name": "swc-plugin-nativewind",
+    "version": "0.1.0",
+    "description": "",
+    "author": "",
+    "license": "MIT",
+    "keywords": ["swc-plugin", "react-native", "tailwind"],
+    "main": "target/wasm32-wasi/release/swc_plugin_nativewind.wasm",
+    "scripts": {
+        "build": "cargo build-wasi",
+        "prepublishOnly": "yarn build --release"
+    },
+    "files": [],
+    "preferUnplugged": true
+}
