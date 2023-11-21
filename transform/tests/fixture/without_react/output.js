@@ -1,1 +1,3 @@
-console.log('Hello, World!');
+import React, { createElement } from 'fake-react';
+React.createElement();
+createElement();
