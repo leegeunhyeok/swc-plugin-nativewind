@@ -1,5 +1,5 @@
 import React from 'react';
 
 function Component() {
-  return React.createElement('div', {}, null, null);
+  return React.cloneElement('div', {}, null, null);
 }
