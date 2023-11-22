@@ -4,12 +4,24 @@
     "description": "",
     "author": "",
     "license": "MIT",
-    "keywords": ["swc-plugin", "react-native", "tailwind"],
+    "keywords": [
+        "swc-plugin",
+        "react-native",
+        "tailwind"
+    ],
     "main": "target/wasm32-wasi/release/swc_plugin_nativewind.wasm",
     "scripts": {
+        "demo": "node -r @swc-node/register demo.ts",
         "build": "cargo build-wasi",
         "prepublishOnly": "yarn build --release"
     },
     "files": [],
-    "preferUnplugged": true
+    "preferUnplugged": true,
+    "devDependencies": {
+        "@swc-node/register": "^1.6.8",
+        "@swc/core": "^1.3.99",
+        "@types/node": "^20.9.4",
+        "cli-highlight": "^2.1.11",
+        "typescript": "^5.3.2"
+    }
 }
