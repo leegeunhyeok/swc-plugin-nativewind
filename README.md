@@ -71,3 +71,7 @@ export function MyComponent() {
   });
 }
 ```
+
+## License
+
+[MIT](./LICENSE)
