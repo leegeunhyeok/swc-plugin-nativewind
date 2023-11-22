@@ -53,11 +53,15 @@ impl ReactCollector {
         str == REACT_PACKAGE
     }
 
-    fn is_react_require(&mut self, expr: &Expr) -> bool {
+    fn is_create_element(&mut self, str: &str) -> bool {
+        str == CREATE_ELEMENT
+    }
+
+    fn is_react_require_expr(&mut self, expr: &Expr) -> bool {
         let require_source = self.get_require_source(expr);
         let require_interop_source = self.get_interop_require_default_source(expr);
         if let Some(source) = require_source.or(require_interop_source) {
-            debug!("is_react_require: {:#?}", source);
+            debug!("is_react_require_expr: {:#?}", source);
             return source.as_str() == REACT_PACKAGE;
         }
         false
@@ -124,12 +128,63 @@ impl ReactCollector {
             if let Some(expr) = var_declarator.init.as_ref() {
                 // `const React = require('react')`
                 // `const React = _interopRequireDefault(require('react'))`
-                if let Some(Some(bind_ident)) = self
-                    .is_react_require(expr)
-                    .then(|| var_declarator.name.as_ident())
-                {
-                    self.react_imports
-                        .push(ReactImport::cjs(bind_ident.id.clone(), ImportTarget::Base));
+                // `const { createElement } = require('react')`
+                // `const { createElement } = _interopRequireDefault(require('react'))`
+                // `const { createElement as c } = require('react')`
+                // `const { createElement as c } = _interopRequireDefault(require('react'))`
+                if self.is_react_require_expr(expr) {
+                    if let Some(binding_ident) = var_declarator.name.as_ident() {
+                        self.react_imports.push(ReactImport::cjs(
+                            binding_ident.id.clone(),
+                            ImportTarget::Base,
+                        ));
+                    } else if let Some(ObjectPat {
+                        optional: false,
+                        props,
+                        ..
+                    }) = var_declarator.name.as_object()
+                    {
+                        for prop in props.iter() {
+                            match prop {
+                                ObjectPatProp::Assign(assign_pat_prop) => {
+                                    self.react_imports.push(ReactImport::cjs(
+                                        assign_pat_prop.key.clone(),
+                                        ImportTarget::CreateElement,
+                                    ));
+                                    return;
+                                }
+                                ObjectPatProp::KeyValue(KeyValuePatProp {
+                                    key: PropName::Ident(key_ident),
+                                    value: value_pat,
+                                }) => {
+                                    if self.is_create_element(key_ident.sym.as_str()) {
+                                        if let Some(value_ident) = value_pat.as_ident() {
+                                            self.react_imports.push(ReactImport::cjs(
+                                                value_ident.id.clone(),
+                                                ImportTarget::CreateElement,
+                                            ));
+                                            return;
+                                        }
+                                    }
+                                }
+                                ObjectPatProp::KeyValue(KeyValuePatProp {
+                                    key: PropName::Str(str),
+                                    value: value_pat,
+                                }) => {
+                                    if self.is_create_element(str.value.as_str()) {
+                                        if let Some(value_ident) = value_pat.as_ident() {
+                                            self.react_imports.push(ReactImport::cjs(
+                                                value_ident.id.clone(),
+                                                ImportTarget::CreateElement,
+                                            ));
+                                            return;
+                                        }
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -153,7 +208,9 @@ impl ReactCollector {
                 }
                 // `import { createElement } from 'react'`
                 // `import { createElement as other } from 'react'`
-                ImportSpecifier::Named(named) if named.local.sym.as_str() == CREATE_ELEMENT => {
+                ImportSpecifier::Named(named)
+                    if self.is_create_element(named.local.sym.as_str()) =>
+                {
                     if let Some(ModuleExportName::Ident(import_ident)) = &named.imported {
                         self.react_imports.push(ReactImport::esm(
                             import_ident.clone(),

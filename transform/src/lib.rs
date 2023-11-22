@@ -1,14 +1,12 @@
 mod constants;
 mod react_collector;
 
-use crate::{
-    constants::{
-        CREATE_ELEMENT, CREATE_ELEMENT_AND_CHECK_CSS_INTEROP, REACT_NATIVE_CSS_INTEROP_PACKAGE,
-        REQUIRE,
-    },
-    react_collector::ModuleType,
+use crate::constants::{
+    CREATE_ELEMENT, CREATE_ELEMENT_AND_CHECK_CSS_INTEROP, REACT_NATIVE_CSS_INTEROP_PACKAGE,
 };
+use constants::DENIED_FILE_REGEX;
 use react_collector::{ImportTarget, ReactCollector, ReactImport};
+use regex::Regex;
 use swc_core::{
     atoms::{js_word, Atom},
     common::DUMMY_SP,
@@ -21,18 +19,25 @@ use swc_core::{
 use tracing::debug;
 
 pub struct NativeWindVisitor {
+    filename: String,
     interop_ident: Ident,
     react_imports: Vec<ReactImport>,
     replaced_create_element_cnt: i32,
 }
 
 impl NativeWindVisitor {
-    fn default() -> Self {
+    fn default(filename: String) -> Self {
         NativeWindVisitor {
+            filename,
             interop_ident: private_ident!("__c"),
             react_imports: Vec::new(),
             replaced_create_element_cnt: 0,
         }
+    }
+
+    fn is_denied_file(&mut self) -> bool {
+        let allowed_filename_regex = Regex::new(DENIED_FILE_REGEX).unwrap();
+        allowed_filename_regex.is_match(&self.filename)
     }
 
     fn is_react(&mut self, target_sym: &Atom) -> bool {
@@ -100,67 +105,20 @@ impl NativeWindVisitor {
             with: None,
         }))
     }
-
-    /// `const { createElementAndCheckCssInterop: __c } = require('react-native-css-interop')`
-    fn get_require_create_element_and_check_css_interop(&mut self) -> ModuleItem {
-        ModuleItem::Stmt(Stmt::Decl(Decl::Var(Box::new(VarDecl {
-            span: DUMMY_SP,
-            kind: VarDeclKind::Const,
-            decls: vec![VarDeclarator {
-                span: DUMMY_SP,
-                definite: false,
-                name: Pat::Object(ObjectPat {
-                    span: DUMMY_SP,
-                    props: vec![ObjectPatProp::KeyValue(KeyValuePatProp {
-                        key: PropName::Ident(Ident::new(
-                            js_word!(CREATE_ELEMENT_AND_CHECK_CSS_INTEROP),
-                            DUMMY_SP,
-                        )),
-                        value: Box::new(Pat::Ident(BindingIdent {
-                            id: self.interop_ident.clone(),
-                            type_ann: None,
-                        })),
-                    })],
-                    optional: false,
-                    type_ann: None,
-                }),
-                init: Some(Box::new(Expr::Call(CallExpr {
-                    span: DUMMY_SP,
-                    callee: Callee::Expr(Box::new(Expr::Ident(Ident::new(
-                        js_word!(REQUIRE),
-                        DUMMY_SP,
-                    )))),
-                    args: vec![ExprOrSpread {
-                        expr: Box::new(Expr::Lit(Lit::Str(Str {
-                            span: DUMMY_SP,
-                            value: Atom::from(REACT_NATIVE_CSS_INTEROP_PACKAGE),
-                            raw: None,
-                        }))),
-                        spread: None,
-                    }],
-                    type_args: None,
-                }))),
-            }],
-            declare: false,
-        }))))
-    }
 }
 
 impl VisitMut for NativeWindVisitor {
     noop_visit_mut_type!();
 
     fn visit_mut_module(&mut self, module: &mut Module) {
+        if self.is_denied_file() {
+            debug!("this file is denied: {:#?}", self.filename);
+            return;
+        }
+
         // Collect all of React(import or require) from module.
         let mut collector = ReactCollector::default();
         module.visit_mut_with(&mut collector);
-
-        let is_esm = collector
-            .react_imports
-            .iter()
-            .any(|import| match import.module_type {
-                ModuleType::Esm => true,
-                ModuleType::Cjs => false,
-            });
 
         self.react_imports.append(&mut collector.react_imports);
         debug!("react_imports: {:#?}", self.react_imports);
@@ -169,14 +127,9 @@ impl VisitMut for NativeWindVisitor {
         module.visit_mut_children_with(self);
 
         if self.react_imports.len() > 0 && self.replaced_create_element_cnt > 0 {
-            module.body.insert(
-                0,
-                if is_esm {
-                    self.get_import_create_element_and_check_css_interop()
-                } else {
-                    self.get_require_create_element_and_check_css_interop()
-                },
-            );
+            module
+                .body
+                .insert(0, self.get_import_create_element_and_check_css_interop());
         }
     }
 
@@ -211,6 +164,6 @@ impl VisitMut for NativeWindVisitor {
     }
 }
 
-pub fn nativewind() -> impl VisitMut + Fold {
-    as_folder(NativeWindVisitor::default())
+pub fn nativewind(filename: String) -> impl VisitMut + Fold {
+    as_folder(NativeWindVisitor::default(filename))
 }

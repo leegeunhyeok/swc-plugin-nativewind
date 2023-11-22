@@ -14,7 +14,6 @@ members = [
 crate-type = ["cdylib"]
 
 [dependencies]
-regex = "1.10.2"
 serde = "1"
 swc_core = { version = "0.86.*" }
 swc_nativewind = { path = "./transform" }
