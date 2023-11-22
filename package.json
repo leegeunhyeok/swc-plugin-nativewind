@@ -37,5 +37,9 @@
         "github": {
             "release": true
         }
+    },
+    "peerDependencies": {
+        "nativewind": "*",
+        "react-native-css-interop": "*"
     }
 }
