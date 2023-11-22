@@ -1,6 +1,6 @@
 {
     "name": "swc-plugin-nativewind",
-    "version": "0.0.0",
+    "version": "0.1.0-alpha.0",
     "description": "Swc plugin implementation of the NativeWind babel plugin",
     "author": "Geunhyeok LEE <dev.ghlee@gmail.com>",
     "license": "MIT",
