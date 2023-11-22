@@ -8,7 +8,7 @@ use crate::{
     },
     react_collector::ModuleType,
 };
-use react_collector::{ReactCollector, ReactImport};
+use react_collector::{ImportTarget, ReactCollector, ReactImport};
 use swc_core::{
     atoms::{js_word, Atom},
     common::DUMMY_SP,
@@ -23,7 +23,7 @@ use tracing::debug;
 pub struct NativeWindVisitor {
     interop_ident: Ident,
     react_imports: Vec<ReactImport>,
-    replaced: i32,
+    replaced_create_element_cnt: i32,
 }
 
 impl NativeWindVisitor {
@@ -31,14 +31,43 @@ impl NativeWindVisitor {
         NativeWindVisitor {
             interop_ident: private_ident!("__c"),
             react_imports: Vec::new(),
-            replaced: 0,
+            replaced_create_element_cnt: 0,
         }
     }
 
-    fn is_collected_react(&mut self, target_sym: &Atom) -> bool {
-        for import in &self.react_imports {
-            if *target_sym == import.ident.sym {
-                return true;
+    fn is_react(&mut self, target_sym: &Atom) -> bool {
+        self.react_imports.iter().any(|import| match import.target {
+            ImportTarget::Base => *target_sym == import.ident.sym,
+            _ => false,
+        })
+    }
+
+    fn is_create_element(&mut self, target_sym: &Atom) -> bool {
+        self.react_imports.iter().any(|import| match import.target {
+            ImportTarget::CreateElement => *target_sym == import.ident.sym,
+            _ => false,
+        })
+    }
+
+    fn is_react_create_element_member_expr(
+        &mut self,
+        member_expr: &MemberExpr,
+        check_create_element: bool,
+    ) -> bool {
+        if let Some(prop_ident) = member_expr.prop.as_ident() {
+            if check_create_element && prop_ident.sym != CREATE_ELEMENT {
+                return false;
+            }
+
+            if let Some(obj_ident) = member_expr.obj.as_ident() {
+                debug!("is_react_create_element_member_expr");
+                return self.is_react(&obj_ident.sym);
+            } else if let Some(inner_member_expr) = member_expr.obj.as_member() {
+                debug!(
+                    "is_react_create_element_member_expr inner: {:#?}",
+                    inner_member_expr
+                );
+                return self.is_react_create_element_member_expr(inner_member_expr, false);
             }
         }
         false
@@ -139,7 +168,7 @@ impl VisitMut for NativeWindVisitor {
         // After collect, visit children.
         module.visit_mut_children_with(self);
 
-        if self.react_imports.len() > 0 && self.replaced > 0 {
+        if self.react_imports.len() > 0 && self.replaced_create_element_cnt > 0 {
             module.body.insert(
                 0,
                 if is_esm {
@@ -164,21 +193,17 @@ impl VisitMut for NativeWindVisitor {
                     optional: false,
                     sym,
                     ..
-                }) => {
-                    if self.is_collected_react(sym) {
-                        self.replaced += 1;
-                        *call_expr = self.get_create_element_interop_call_expr(call_expr.clone());
-                    }
+                }) if self.is_create_element(sym) => {
+                    self.replaced_create_element_cnt += 1;
+                    *call_expr = self.get_create_element_interop_call_expr(call_expr.clone());
                 }
-                // `React.createElement(...)`
-                Expr::Member(MemberExpr { obj, prop, .. }) => {
-                    if let (Some(ident), Some(prop)) = (obj.as_ident(), prop.as_ident()) {
-                        if prop.sym == CREATE_ELEMENT && self.is_collected_react(&ident.sym) {
-                            self.replaced += 1;
-                            *call_expr =
-                                self.get_create_element_interop_call_expr(call_expr.clone());
-                        }
-                    }
+                // A: `<react_ident>.createElement(...)`
+                // B: `<react_ident>.default.createElement(...)`
+                Expr::Member(member_expr)
+                    if self.is_react_create_element_member_expr(member_expr, true) =>
+                {
+                    self.replaced_create_element_cnt += 1;
+                    *call_expr = self.get_create_element_interop_call_expr(call_expr.clone());
                 }
                 _ => {}
             }
