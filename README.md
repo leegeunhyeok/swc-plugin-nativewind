@@ -1,10 +1,12 @@
 # swc-plugin-nativewind
 
-Swc plugin implementation of the [NativeWind](https://github.com/marklawlor/nativewind) babel plugin.
+Swc plugin implementation of the [NativeWind v4.x](https://github.com/marklawlor/nativewind) babel plugin.
 
 ✨ `100%` coverage of [test cases](https://github.com/marklawlor/nativewind/blob/main/packages/react-native-css-interop/src/__tests__/babel-plugin.ts) in NativeWind. (checkout the test cases [here](https://github.com/leegeunhyeok/swc-plugin-nativewind/tree/master/transform/tests/fixture))
 
 ## Installation
+
+Requirement: `>= @swc/core@1.3.81`
 
 ```bash
 npm install swc-plugin-nativewind
