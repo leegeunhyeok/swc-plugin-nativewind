@@ -12,7 +12,7 @@ use swc_core::{
     common::DUMMY_SP,
     ecma::{
         ast::*,
-        utils::private_ident,
+        utils::{private_ident, ExprFactory},
         visit::{as_folder, noop_visit_mut_type, Fold, VisitMut, VisitMutWith},
     },
 };
@@ -26,18 +26,19 @@ pub struct NativeWindVisitor {
 }
 
 impl NativeWindVisitor {
-    fn default(filename: String) -> Self {
+    fn new(filename: String) -> Self {
         NativeWindVisitor {
             filename,
             interop_ident: private_ident!("__c"),
-            react_imports: Vec::new(),
+            react_imports: Default::default(),
             replaced_create_element_cnt: 0,
         }
     }
 
     fn is_denied_file(&mut self) -> bool {
-        let allowed_filename_regex = Regex::new(DENIED_FILE_REGEX).unwrap();
-        allowed_filename_regex.is_match(&self.filename)
+        Regex::new(DENIED_FILE_REGEX)
+            .unwrap()
+            .is_match(&self.filename)
     }
 
     fn is_react(&mut self, target_sym: &Atom) -> bool {
@@ -59,28 +60,30 @@ impl NativeWindVisitor {
         member_expr: &MemberExpr,
         check_create_element: bool,
     ) -> bool {
-        if let Some(prop_ident) = member_expr.prop.as_ident() {
-            if check_create_element && prop_ident.sym != CREATE_ELEMENT {
-                return false;
+        match member_expr.prop.as_ident() {
+            Some(prop_ident) => {
+                if check_create_element && prop_ident.sym != CREATE_ELEMENT {
+                    false
+                } else if let Some(obj_ident) = member_expr.obj.as_ident() {
+                    debug!("is_react_create_element_member_expr");
+                    self.is_react(&obj_ident.sym)
+                } else if let Some(inner_member_expr) = member_expr.obj.as_member() {
+                    debug!(
+                        "is_react_create_element_member_expr inner: {:#?}",
+                        inner_member_expr
+                    );
+                    self.is_react_create_element_member_expr(inner_member_expr, false)
+                } else {
+                    false
+                }
             }
-
-            if let Some(obj_ident) = member_expr.obj.as_ident() {
-                debug!("is_react_create_element_member_expr");
-                return self.is_react(&obj_ident.sym);
-            } else if let Some(inner_member_expr) = member_expr.obj.as_member() {
-                debug!(
-                    "is_react_create_element_member_expr inner: {:#?}",
-                    inner_member_expr
-                );
-                return self.is_react_create_element_member_expr(inner_member_expr, false);
-            }
+            _ => false,
         }
-        false
     }
 
     fn get_create_element_interop_call_expr(&mut self, orig_call_expr: CallExpr) -> CallExpr {
         CallExpr {
-            callee: Callee::Expr(Box::new(Expr::Ident(self.interop_ident.clone()))),
+            callee: self.interop_ident.clone().as_callee(),
             args: orig_call_expr.args.clone(),
             span: orig_call_expr.span,
             type_args: None,
@@ -165,5 +168,5 @@ impl VisitMut for NativeWindVisitor {
 }
 
 pub fn nativewind(filename: String) -> impl VisitMut + Fold {
-    as_folder(NativeWindVisitor::default(filename))
+    as_folder(NativeWindVisitor::new(filename))
 }

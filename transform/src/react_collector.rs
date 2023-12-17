@@ -232,7 +232,7 @@ impl ReactCollector {
 impl Default for ReactCollector {
     fn default() -> Self {
         ReactCollector {
-            react_imports: Vec::new(),
+            react_imports: Default::default(),
         }
     }
 }
